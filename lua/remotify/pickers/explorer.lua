@@ -5,11 +5,12 @@ local ssh_commands = require("remotify.tools.ssh_commands")
 local ssh = require("remotify.tools.ssh")
 local log = require("remotify.tools.log")
 local path = require("remotify.core.path")
+local errf = require("remotify.core.errf").errf
 
 local Explorer = {}
 Explorer.__index = Explorer
 
----@class RemotifyExplorer
+---@class Explorer
 ---@field login table
 function Explorer.new(login, completion)
 	local self = setmetatable({}, Explorer)
@@ -65,9 +66,29 @@ local function make_current_path(home, p)
 	return p
 end
 
+---Ask user for a directory name.
+---Callback receives (result, err):
+---  result : string|nil   -- the entered name
+---  err    : string|nil   -- error message if cancelled or empty
+local function ask_for_dir_name(cb)
+	vim.ui.input({ prompt = "Enter name: ", default = "" }, function(text)
+		if text == nil then
+			cb(nil, errf("Cancelled"))
+			return
+		end
+		if #text == 0 then
+			cb(nil, errf("Empty name"))
+			return
+		end
+		cb(text, nil)
+	end)
+end
+
 function Explorer:make_title()
 	local header_path = make_current_path(self.home, self.cwd or "")
-	local header = ("[%s]  (<Enter>: open dir • h: up • r: refresh • q: quit • s: select)"):format(header_path)
+	local header = ("[%s]  (<Enter>: open dir • u: up • r: refresh • q: quit • s: select • m: mkdir)"):format(
+		header_path
+	)
 	return header
 end
 
@@ -188,6 +209,36 @@ function Explorer:select_and_close()
 	end
 end
 
+function Explorer:make_dir()
+	ask_for_dir_name(function(name, derr)
+		if not name then
+			vim.notify("Remotify: can't make dir" .. derr, vim.log.levels.ERROR)
+			return
+		end
+		local full = self.cwd == "/" and ("/" .. name) or path.join(self.cwd, name)
+		local args = { "-p", full }
+		local argv, merr = ssh_commands.make_cmd(self.login, "mkdir", args)
+		if not argv then
+			vim.notify("Remotify: " .. tostring(merr), vim.log.levels.ERROR)
+			return
+		end
+
+		ssh.connect_and_exec(argv, function(ssh_err, code, _, errlines)
+			if ssh_err then
+				vim.notify("Remotify: " .. tostring(ssh_err), vim.log.levels.ERROR)
+				return
+			end
+			if code ~= 0 and #errlines > 0 then
+				vim.schedule(function()
+					vim.notify(table.concat(errlines, "\n"), vim.log.levels.ERROR)
+				end)
+				return
+			end
+			self.list(self, self.cwd)
+		end)
+	end)
+end
+
 function Explorer:up()
 	self:list(path.parent_path(self.cwd or "/"))
 end
@@ -210,7 +261,7 @@ function Explorer:open()
 	map("<CR>", function()
 		self:enter()
 	end)
-	map("h", function()
+	map("u", function()
 		self:up()
 	end)
 	map("r", function()
@@ -221,6 +272,9 @@ function Explorer:open()
 	end)
 	map("s", function()
 		self:select_and_close()
+	end)
+	map("m", function()
+		self:make_dir()
 	end)
 	-- automatically close when leaving the window
 	vim.api.nvim_create_autocmd("WinLeave", {

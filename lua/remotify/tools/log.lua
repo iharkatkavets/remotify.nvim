@@ -1,17 +1,41 @@
 -- lua/remotify/log.lua
 
+local config = require("remotify.config")
+
 local M = {}
 
--- where to store log file
 local logfile = vim.fn.stdpath("data") .. "/remotify.log"
 local errf = require("remotify.core.errf").errf
 
--- levels
 local levels = { error = 1, warn = 2, info = 3, debug = 4 }
-local current_level = levels.debug -- change to "info" in production
+local current_level = levels.info
 
--- internal write function
+local function set_level(level)
+	current_level = levels[level] or levels.info
+end
+
+local function timestamp()
+	return os.date("%a %b %d %H:%M:%S %Y")
+end
+
+local function format(msg, level)
+	local info = debug.getinfo(3, "Sl") -- file + line of caller
+	local file = info.short_src or "?"
+	local line = info.currentline or 0
+	return string.format("[%s  %s] %s:%d: %s", level, timestamp(), file, line, msg)
+end
+
+local function sync_level_from_config()
+	local cfg = config.get()
+	if cfg and cfg.log_level then
+		set_level(cfg.log_level)
+	end
+end
+
+sync_level_from_config()
+
 local function write(level, msg)
+	sync_level_from_config()
 	if levels[level] > current_level then
 		return
 	end
@@ -20,16 +44,8 @@ local function write(level, msg)
 		vim.notify(errf("remotify.log: cannot open " .. logfile), vim.log.levels.ERROR)
 		return
 	end
-	local line = string.format("[%s][%s] %s\n", os.date("%H:%M:%S"), level:upper(), msg)
-	f:write(line)
+	f:write(format(msg, level:upper()))
 	f:close()
-
-	-- optionally echo errors/warnings also in nvim
-	if level == "error" or level == "warn" then
-		vim.schedule(function()
-			vim.notify(msg, level == "error" and vim.log.levels.ERROR or vim.log.levels.WARN, { title = "remotify" })
-		end)
-	end
 end
 
 M.debug = function(msg)
@@ -48,7 +64,6 @@ M.error = function(msg)
 	write("error", type(msg) == "table" and vim.inspect(msg) or tostring(msg))
 end
 
--- expose the logfile path (for :edit or :vsplit)
 M.logfile = logfile
 
 return M

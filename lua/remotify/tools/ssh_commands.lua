@@ -1,5 +1,7 @@
 -- lua/remotify/tools/ssh_commands.lua
 
+local errf = require("remotify.core.errf").errf
+
 local M = {}
 
 ---@class SSHDest
@@ -100,7 +102,7 @@ end
 ---@return table|nil, string|nil
 M.make_cmd = function(login, exec, args, opts)
 	if not exec or exec == "" then
-		return nil, "Remotify: exec is required"
+		return nil, errf("Remotify: exec is required")
 	end
 	local base, err = M.make_base_cmd(login)
 	if not base then

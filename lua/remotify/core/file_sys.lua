@@ -1,5 +1,7 @@
 -- lua/remotify/core/file_sys.lua
 
+local errf = require("remotify.core.errf").errf
+
 local M = {}
 
 ---@param dir_name string|nil  -- directory name (optional)
@@ -16,9 +18,12 @@ M.make_temp_dir = function(dir_name)
 		name = tmp_dir
 	end
 
-	local ok, err = pcall(vim.fn.mkdir, name, "p")
-	if not ok or err ~= 1 then
-		return nil, "Failed to create directory: " .. tostring(name)
+	local ok, res = pcall(vim.fn.mkdir, name, "p")
+	if not ok then
+		return nil, errf("Failed to create directory: " .. tostring(res))
+	end
+	if res ~= 1 then
+		return nil, errf("Failed to create directory (%s): %s"):format(tostring(name), tostring(res))
 	end
 
 	return name, nil

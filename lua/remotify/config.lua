@@ -5,14 +5,15 @@ local M = {}
 local defaults = {
 	default_remote = "localhost",
 	log_level = "info",
+	ignore = {}, -- e.g. { ".git", "node_modules", "*.log" }
 }
 
 ---@param opts table|nil
 function M.setup(opts)
-	-- Validate early (optional but nice)
 	vim.validate({
 		default_remote = { opts and opts.default_remote or defaults.default_remote, "string" },
 		log_level = { opts and opts.log_level or defaults.log_level, "string" },
+		ignore = { opts and opts.ignore or defaults.ignore, "table" },
 	})
 
 	M._cfg = vim.tbl_deep_extend("force", defaults, opts or {})
@@ -29,7 +30,7 @@ function M.setup(opts)
 end
 
 function M.get()
-	return M._cfg
+	return M._cfg or defaults
 end
 
 ---@param opts table

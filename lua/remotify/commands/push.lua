@@ -10,6 +10,14 @@ local function get_current_dir()
 	return vim.loop.cwd()
 end
 
+local function notify_error(msg)
+	vim.notify("Remotify: " .. msg, vim.log.levels.ERROR)
+end
+
+local function notify_info(msg)
+	vim.notify("Remotify: " .. msg, vim.log.levels.INFO)
+end
+
 ---@param conn SSHConn
 ---@param completion fun(result: string|nil, err: string|nil)
 ---@return nil
@@ -36,20 +44,25 @@ end
 M.run = function()
 	require("remotify.prompts.ssh").ask_ssh_login(function(conn, input_err)
 		if input_err then
-			vim.notify("Remotify: " .. input_err, vim.log.levels.ERROR)
+			notify_error(input_err)
 			return
 		end
 		ssh.try_connect(conn, function(conn_err)
 			if conn_err then
-				vim.notify("Remotify: " .. conn_err, vim.log.levels.ERROR)
+				notify_error(conn_err)
 				return
 			end
-			ask_select_remote_dir(conn, function(remote_dir, err)
-				if not remote_dir then
-					vim.notify("Remotify: " .. err, vim.log.levels.ERROR)
+			ask_select_remote_dir(conn, function(dir, dir_err)
+				if not dir_err then
+					notify_error(dir_err)
 					return
 				end
-				rsync(conn, get_current_dir(), remote_dir, true)
+				local rsync_ok, rsync_err = rsync(conn, get_current_dir(), dir, true)
+				if not rsync_ok then
+					notify_error(rsync_err)
+				else
+					notify_info("rsync done")
+				end
 			end)
 		end)
 	end)

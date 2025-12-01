@@ -1,5 +1,7 @@
 -- lua/remotify/tools/uri.lua
 
+local errf = require("remotify.core.errf").errf
+
 local M = {}
 
 -- Accepts forms like:
@@ -12,7 +14,7 @@ function M.parse_uri(s)
 	s = s or ""
 	s = s:gsub("^%s+", ""):gsub("%s+$", "")
 	if s == "" then
-		return nil, "Empty input"
+		return nil, errf("Empty input")
 	end
 
 	local user, host, path
@@ -41,7 +43,7 @@ function M.parse_uri(s)
 		return { host = host }
 	end
 
-	return nil, "Could not parse. Try user@host:/abs/path"
+	return nil, errf("Could not parse. Try user@host:/abs/path")
 end
 
 return M

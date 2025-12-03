@@ -53,7 +53,7 @@ M.run = function()
 				return
 			end
 			ask_select_remote_dir(conn, function(dir, dir_err)
-				if not dir_err then
+				if dir_err then
 					notify_error(dir_err)
 					return
 				end

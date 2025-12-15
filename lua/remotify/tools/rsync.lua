@@ -13,7 +13,16 @@ local M = {}
 ---@return boolean             -- ok, Always true on success
 ---@return string|nil          -- error  Always nil on success
 M.rsync = function(conn, src, dst, push)
-	local args = { "rsync", "-az", "--delete", "-e", "ssh -o BatchMode=yes -T" }
+	local ssh_part = { "ssh", "-o", "BatchMode=yes", "-T" }
+	if conn.port then
+		table.insert(ssh_part, "-p")
+		table.insert(ssh_part, tostring(conn.port))
+	end
+	if conn.key and #conn.key > 0 then
+		table.insert(ssh_part, "-i")
+		table.insert(ssh_part, vim.fn.shellescape(conn.key))
+	end
+	local args = { "rsync", "-az", "--delete", "-e", table.concat(ssh_part, " ") }
 	local cfg = require("remotify.config").get()
 	if cfg.ignore then
 		for _, pattern in ipairs(cfg.ignore) do

@@ -4,7 +4,7 @@ local config = require("remotify.config")
 
 local M = {}
 
-local logfile = vim.fn.stdpath("data") .. "/remotify.log"
+local logfile = vim.fn.stdpath("log") .. "/remotify.log"
 local errf = require("remotify.core.errf").errf
 
 local levels = { error = 1, warn = 2, info = 3, debug = 4 }
@@ -19,10 +19,10 @@ local function timestamp()
 end
 
 local function format(msg, level)
-	local info = debug.getinfo(3, "Sl") -- file + line of caller
+	local info = debug.getinfo(4, "Sl") -- file + line of caller
 	local file = info.short_src or "?"
 	local line = info.currentline or 0
-	return string.format("[%s  %s] %s:%d: %s", level, timestamp(), file, line, msg)
+	return string.format("[%s  %s] %s:%d: %s\n", level, timestamp(), file, line, msg)
 end
 
 local function sync_level_from_config()

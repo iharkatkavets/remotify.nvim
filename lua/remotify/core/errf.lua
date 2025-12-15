@@ -8,7 +8,7 @@ local M = {}
 function M.errf(msg)
 	local info = debug.getinfo(2, "S")
 	local file = info and info.short_src or "unknown"
-	return string.format("%s: %s", file, msg)
+	return string.format("%s: %s\n", file, msg)
 end
 
 return M

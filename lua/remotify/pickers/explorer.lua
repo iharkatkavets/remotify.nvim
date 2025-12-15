@@ -11,7 +11,7 @@ local Explorer = {}
 Explorer.__index = Explorer
 
 ---@class Explorer
----@field login table
+---@field login SSHConn
 function Explorer.new(login, completion)
 	local self = setmetatable({}, Explorer)
 	self.login = login
@@ -26,11 +26,15 @@ end
 function Explorer:resolve_home(cb)
 	local argv = {
 		"ssh",
-		"-o",
-		"BatchMode=yes",
-		(self.login.user and (self.login.user .. "@" .. self.login.host)) or self.login.host,
-		'printf %s "$HOME"',
-	} -- one string => remote shell expands $HOME
+	}
+	if self.login.key and #self.login.key then
+		table.insert(argv, "-i")
+		table.insert(argv, self.login.key)
+		table.insert(argv, "-o")
+		table.insert(argv, "BatchMode=yes")
+	end
+	table.insert(argv, (self.login.user and (self.login.user .. "@" .. self.login.host)) or self.login.host)
+	table.insert(argv, 'printf %s "$HOME"')
 	ssh.connect_and_exec(argv, function(ssh_err, code, outlines, errlines)
 		if ssh_err then
 			vim.notify("Remotify: " .. tostring(ssh_err), vim.log.levels.ERROR)

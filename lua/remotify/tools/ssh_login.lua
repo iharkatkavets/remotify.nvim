@@ -5,7 +5,7 @@ local M = {}
 ---@class SSHConn
 ---@field key string|nil
 ---@field port integer|nil
----@field username string|nil
+---@field user string|nil
 ---@field host string|nil
 
 ---@param cmd string
@@ -16,7 +16,7 @@ function M.parse(cmd)
 		return nil, "empty input"
 	end
 
-	local result = { key = nil, port = nil, username = nil, host = nil }
+	local result = { key = nil, port = nil, user = nil, host = nil }
 
 	local key = cmd:match("%-i%s+([^%s]+)")
 	if key then
@@ -33,7 +33,7 @@ function M.parse(cmd)
 	if userhost then
 		local user, host = userhost:match("^(.-)@(.+)$")
 		if user and host then
-			result.username, result.host = user, host
+			result.user, result.host = user, host
 		else
 			result.host = userhost
 		end

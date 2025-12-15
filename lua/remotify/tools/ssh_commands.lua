@@ -32,9 +32,9 @@ M.make_base_cmd = function(conn)
 		table.insert(cmd, "-p")
 		table.insert(cmd, tostring(conn.port))
 	end
-	if conn and conn.identity then
+	if conn and conn.key then
 		table.insert(cmd, "-i")
-		table.insert(cmd, conn.identity)
+		table.insert(cmd, conn.key)
 	end
 	if conn and conn.host then
 		local target = conn.user and (conn.user .. "@" .. conn.host) or conn.host

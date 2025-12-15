@@ -15,7 +15,7 @@ M.make_copy_from_remote = function(conn, remote_dir, local_dir)
 		table.insert(args, tostring(conn.port))
 	end
 
-	local target = (conn.username and #conn.username > 0) and (conn.username .. "@" .. conn.host) or conn.host
+	local target = (conn.user and #conn.user > 0) and (conn.user .. "@" .. conn.host) or conn.host
 
 	table.insert(args, (target .. ":" .. remote_dir))
 	table.insert(args, local_dir)

@@ -1,4 +1,4 @@
--- lua/remotify/prompts/ssh.lua
+-- lua/remotify/ask/ask.lua
 
 local prompt = require("remotify.prompt")
 local ssh_login = require("remotify.tools.ssh_login")
@@ -11,7 +11,7 @@ local M = {}
 --- completion(result, err):
 ---   - success: completion(result, nil)
 ---   - error:   completion(nil, err)
-function M.ask_ssh_login(completion)
+function M.ssh_login(completion)
 	local cfg = cfgmod.get()
 	local default_remote = (cfg.default_remote and ("ssh " .. cfg.default_remote)) or "ssh "
 
@@ -37,7 +37,7 @@ end
 ---     local conn, err = require("remotify.prompts.ssh").ask_ssh_login_async()
 ---   end)
 ---@return table|nil, string|nil
-function M.ask_ssh_login_async()
+function M.ssh_login_async()
 	local cfg = cfgmod.get()
 	local default_remote = (cfg.default_remote and ("ssh " .. cfg.default_remote)) or "ssh "
 	local user_input = prompt.input_async({

@@ -3,6 +3,9 @@
 local ssh = require("remotify.tools.ssh")
 local rsync = require("remotify.tools.rsync").rsync
 local errf = require("remotify.core.errf").errf
+local history = require("remotify.history.push")
+local confirm = require("remotify.core.confirm")
+local ask = require("remotify.ask.ask")
 
 local M = {}
 
@@ -32,7 +35,7 @@ local function ask_select_remote_dir(conn, completion)
 			completion(nil, exp_err or errf("No directory selected"))
 			return
 		end
-		if require("remotify.core.ui").confirm_directory(remote_dir) then
+		if confirm.push(conn, remote_dir) then
 			completion(remote_dir, nil)
 			return
 		end
@@ -42,27 +45,42 @@ local function ask_select_remote_dir(conn, completion)
 end
 
 M.run = function()
-	require("remotify.prompts.ssh").ask_ssh_login(function(conn, input_err)
+	local local_dir = get_current_dir()
+
+	local function perform_rsync(ssh_conn, remote_dir)
+		local rsync_ok, rsync_err = rsync(ssh_conn, local_dir, remote_dir, true)
+		if not rsync_ok then
+			notify_error(rsync_err)
+		else
+			notify_info("rsync done")
+		end
+	end
+
+	local prev = history.get(local_dir)
+	if prev and prev.remote_dir and prev.ssh_conn and confirm.push(prev.ssh_conn, prev.remote_dir) then
+		perform_rsync(prev.ssh_conn, prev.remote_dir)
+		return
+	end
+
+	ask.ssh_login(function(ssh_conn, input_err)
 		if input_err then
 			notify_error(input_err)
 			return
 		end
-		ssh.try_connect(conn, function(conn_err)
+
+		ssh.try_connect(ssh_conn, function(conn_err)
 			if conn_err then
 				notify_error(conn_err)
 				return
 			end
-			ask_select_remote_dir(conn, function(dir, dir_err)
+
+			ask_select_remote_dir(ssh_conn, function(remote_dir, dir_err)
 				if dir_err then
 					notify_error(dir_err)
 					return
 				end
-				local rsync_ok, rsync_err = rsync(conn, get_current_dir(), dir, true)
-				if not rsync_ok then
-					notify_error(rsync_err)
-				else
-					notify_info("rsync done")
-				end
+				perform_rsync(ssh_conn, remote_dir)
+				history.set(local_dir, ssh_conn, remote_dir)
 			end)
 		end)
 	end)

@@ -4,11 +4,11 @@ local M = {}
 
 function M.push(ssh_conn, remote_dir)
 	local remote = {}
-	if ssh_conn and #ssh_conn.user then
+	if ssh_conn and ssh_conn.user and #ssh_conn.user then
 		table.insert(remote, ssh_conn.user)
 		table.insert(remote, "@")
 	end
-	if ssh_conn and #ssh_conn.host then
+	if ssh_conn and ssh_conn.host and #ssh_conn.host then
 		table.insert(remote, ssh_conn.host)
 	end
 	table.insert(remote, ":")

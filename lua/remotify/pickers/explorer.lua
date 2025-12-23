@@ -10,14 +10,17 @@ local Explorer = {}
 Explorer.__index = Explorer
 
 local keymaps = {
-  "   KEY(S)    COMMAND   ",
-  "                       ",
-  "  <enter> -> open dir  ",
-  "        u -> up        ",
-  "        r -> refresh   ",
-  "        s -> select    ",
-  "        m -> mkdir     ",
-  "        q -> quit      ",
+  "   KEY(S)    COMMAND         ",
+  "                             ",
+  "  <enter> -> open dir        ",
+  "        u -> up              ",
+  "        r -> refresh         ",
+  "        s -> select folder   ",
+  "              under cursor   ",
+  "        c -> select current  ",
+  "              folder         ",
+  "        m -> mkdir           ",
+  "        q -> quit            ",
 }
 
 local function is_num(x)
@@ -75,8 +78,12 @@ local function max_keymap_lenght()
 end
 
 local function compute_layout(opts)
-  local cols, lines = vim.o.columns, vim.o.lines
+  opts = opts or {}
+  opts.strategy = opts.strategy or "center"
+  opts.width = opts.width or 0.6
+  opts.height = opts.height or 0.5
   local rel = opts.relative or "editor"
+  local cols, lines = vim.o.columns, vim.o.lines
 
   -- base width/height from spec (with defaults)
   local total_width = resolve_dim(opts.width, cols, math.floor(cols * 0.6))
@@ -153,6 +160,11 @@ end
 
 local function present_explorer(opts)
   opts = opts or {}
+  opts.winblend = opts.winblend or 8
+  opts.files_title_pos = opts.files_title_pos or "left"
+  opts.keymaps_title_pos = opts.keymaps_title_pos or "center"
+  opts.border = opts.border or "rounded"
+  opts.keymaps_title = opts.keymaps_title or " Keymaps "
 
   local layout = compute_layout(opts)
   local files_buf
@@ -183,14 +195,13 @@ local function present_explorer(opts)
     row = layout.keymaps_row,
     col = layout.keymaps_col,
     style = "minimal",
-    border = opts.border or "rounded",
-    title = opts.keymaps_title or " Keymaps ",
-    title_pos = opts.keymaps_title_pos or "center",
+    border = opts.border,
+    title = opts.keymaps_title,
+    title_pos = opts.keymaps_title_pos,
     zindex = opts.zindex,
-    focusable = opts.focusable ~= false,
+    focusable = false,
   }
   local keymaps_win = vim.api.nvim_open_win(keymaps_buf, true, keymaps_win_opts)
-
   if is_num(opts.winblend) then
     vim.api.nvim_set_option_value("winblend", opts.winblend, { win = keymaps_win })
   end
@@ -199,20 +210,29 @@ local function present_explorer(opts)
 
   vim.api.nvim_set_hl(0, "RemotifyHeader", { link = "Title" })
   vim.api.nvim_set_hl(0, "RemotifyKeys", { link = "Special" })
+  vim.api.nvim_set_hl(0, "Arrow", { link = "Special" })
   vim.api.nvim_set_hl(0, "RemotifyAction", { link = "Statement" })
-  local c2, c5, c6 = 10, 13, 23
-  local function hl(line, start_col, end_col, group)
-    vim.api.nvim_buf_set_extmark(keymaps_buf, ns, line, start_col, {
+  local function hl(row, start_col, end_col, group)
+    vim.api.nvim_buf_set_extmark(keymaps_buf, ns, row, start_col, {
       end_col = end_col, -- end_col is enough for same-line highlight
       hl_group = group,
       hl_mode = "combine", -- combine with existing highlights
       priority = 200, -- ensure it wins if needed
     })
   end
-  hl(0, 0, c6, "RemotifyHeader")
-  for row = 2, #keymaps - 1 do
-    hl(row, 0, c2, "RemotifyKeys")
-    hl(row, c5, c6, "RemotifyAction")
+  hl(0, 0, #keymaps[1], "RemotifyHeader")
+  local arrow_start, arrow_end = nil, nil
+  for row = 2, #keymaps do
+    local line = keymaps[row]
+    local tstart, tend = line:find("->", 1, true)
+    if tstart and tend then
+      arrow_start = tstart
+      arrow_end = tend
+    end
+    if arrow_start and arrow_end then
+      hl(row - 1, 0, arrow_start - 1, "RemotifyKeys")
+      hl(row - 1, arrow_end + 1, #keymaps[row], "RemotifyAction")
+    end
   end
 
   local files_win_opts = {
@@ -223,14 +243,13 @@ local function present_explorer(opts)
     row = layout.files_row,
     col = layout.files_col,
     style = "minimal",
-    border = opts.border or "rounded",
+    border = opts.border,
     title = opts.files_title,
-    title_pos = opts.files_title_pos or "center",
+    title_pos = opts.files_title_pos,
     zindex = opts.zindex,
-    focusable = opts.focusable ~= false,
+    focusable = true,
   }
   local files_win = vim.api.nvim_open_win(files_buf, true, files_win_opts)
-
   if is_num(opts.winblend) then
     vim.api.nvim_set_option_value("winblend", opts.winblend, { win = files_win })
   end
@@ -252,27 +271,55 @@ local function present_explorer(opts)
   }
 end
 
-local function reposition(h, patch)
-  if not (h and h.files_win and vim.api.nvim_win_is_valid(h.files_win)) then
+local function reposition(opts)
+  if
+    not opts
+    or not opts.files_win
+    or not vim.api.nvim_win_is_valid(opts.files_win)
+    or not opts.keymaps_win
+    or not vim.api.nvim_win_is_valid(opts.keymaps_win)
+  then
     return
   end
-  h.opts = vim.tbl_deep_extend("force", h.opts or {}, patch or {})
-  local row, col, width, height = compute_layout(h.opts)
-  h.row, h.col, h.width, h.height = row, col, width, height
-  vim.api.nvim_win_set_config(h.files_win, {
-    relative = h.opts.relative or "editor",
-    win = ((h.opts.relative or "editor") == "win") and (h.opts.win or 0) or nil,
-    width = width,
-    height = height,
-    row = row,
-    col = col,
-    border = h.opts.border or "rounded",
-    title = h.opts.title,
-    title_pos = h.opts.title_pos or "center",
-    zindex = h.opts.zindex,
-  })
-  if is_num(h.opts.winblend) then
-    vim.api.nvim_set_option_value("winblend", h.opts.winblend, { win = h.files_win })
+
+  local layout = compute_layout(opts)
+
+  local keymaps_win_opts = {
+    relative = layout.relative,
+    win = (layout.relative == "win") and (opts.win or 0) or nil,
+    width = layout.keymaps_width,
+    height = layout.keymaps_height,
+    row = layout.keymaps_row,
+    col = layout.keymaps_col,
+    style = "minimal",
+    border = opts.border,
+    title = opts.keymaps_title,
+    title_pos = opts.keymaps_title_pos,
+    zindex = opts.zindex,
+    focusable = false,
+  }
+  vim.api.nvim_win_set_config(opts.keymaps_win, keymaps_win_opts)
+  if is_num(opts.winblend) then
+    vim.api.nvim_set_option_value("winblend", opts.winblend, { win = opts.keymaps_win })
+  end
+
+  local files_win_opts = {
+    relative = layout.relative,
+    win = (layout.relative == "win") and (opts.win or 0) or nil,
+    width = layout.files_width,
+    height = layout.files_height,
+    row = layout.files_row,
+    col = layout.files_col,
+    style = "minimal",
+    border = opts.border,
+    title = opts.files_title,
+    title_pos = opts.files_title_pos,
+    zindex = opts.zindex,
+    focusable = true,
+  }
+  vim.api.nvim_win_set_config(opts.files_win, files_win_opts)
+  if is_num(opts.winblend) then
+    vim.api.nvim_set_option_value("winblend", opts.winblend, { win = opts.files_win })
   end
 end
 
@@ -455,9 +502,8 @@ function Explorer:enter()
     log.debug("File: " .. make_current_path(self.home, full))
   end
 end
---
--- enter/up use absolute paths
-function Explorer:select_and_close()
+
+function Explorer:select_under_cursor_and_close()
   local row = vim.api.nvim_win_get_cursor(self.state.files_win)[1]
   local idx = row
   local entry = self.entries and self.entries[idx]
@@ -467,14 +513,21 @@ function Explorer:select_and_close()
 
   if entry:sub(-1) == "/" then
     local name = entry:sub(1, -2)
-    local next_path = self.cwd == "/" and ("/" .. name) or path.join(self.cwd, name)
+    local result = self.cwd == "/" and ("/" .. name) or path.join(self.cwd, name)
     close({ buf = self.state.files_buf, win = self.state.files_win })
     close({ buf = self.state.keymaps_buf, win = self.state.keymaps_win })
-    self.completion(nil, next_path)
+    self.completion(nil, result)
   else
     local full = self.cwd == "/" and ("/" .. entry) or path.join(self.cwd, entry)
     vim.notify("Remotify: can't select file " .. full, vim.log.levels.ERROR)
   end
+end
+
+function Explorer:select_current_and_close()
+  local result = self.cwd
+  close({ buf = self.state.files_buf, win = self.state.files_win })
+  close({ buf = self.state.keymaps_buf, win = self.state.keymaps_win })
+  self.completion(nil, result)
 end
 
 function Explorer:make_dir()
@@ -513,20 +566,12 @@ end
 
 function Explorer:open()
   self.state = present_explorer({
-    strategy = "center",
-    width = 0.6,
-    height = 0.5,
-    winblend = 8,
     files_title = self:make_title(),
-    files_title_pos = "left",
     keymaps_title = " Keymaps ",
-    keymaps_title_pos = "center",
   })
 
-  -- Keymaps scoped to the floating buffer
-  local buf = self.state.files_buf
   local map = function(lhs, fn)
-    vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true })
+    vim.keymap.set("n", lhs, fn, { buffer = self.state.files_buf, nowait = true, silent = true })
   end
   map("<CR>", function()
     self:enter()
@@ -542,19 +587,27 @@ function Explorer:open()
     close({ buf = self.state.keymaps_buf, win = self.state.keymaps_win })
   end)
   map("s", function()
-    self:select_and_close()
+    self:select_under_cursor_and_close()
+  end)
+  map("c", function()
+    self:select_current_and_close()
   end)
   map("m", function()
     self:make_dir()
   end)
-  -- automatically close when leaving the window
+
   vim.api.nvim_create_autocmd("WinLeave", {
-    buffer = buf,
+    buffer = self.state.files_buf,
     once = true,
     callback = function()
-      if vim.api.nvim_win_is_valid(self.state.files_win) then
-        vim.api.nvim_win_close(self.state.files_win, true)
-      end
+      close({ buf = self.state.files_buf, win = self.state.files_win })
+      close({ buf = self.state.keymaps_buf, win = self.state.keymaps_win })
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+    callback = function()
+      reposition(self.state)
     end,
   })
 
